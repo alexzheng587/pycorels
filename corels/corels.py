@@ -92,7 +92,7 @@ class CorelsClassifier:
     _estimator_type = "classifier"
 
     def __init__(self, c=0.01, n_iter=10000, map_type="prefix", policy="lower_bound",
-                 verbosity=["rulelist"], ablation=0, max_card=2, min_support=0.01, pre_mine=1, random_seed=262):
+                 verbosity=["rulelist"], ablation=0, max_card=2, min_support=0.01, pre_mine=1, random_seed=262, num_threads=1):
         self.c = c
         self.n_iter = n_iter
         self.map_type = map_type
@@ -103,6 +103,7 @@ class CorelsClassifier:
         self.min_support = min_support
         self.pre_mine = pre_mine
         self.random_seed = random_seed
+        self.num_threads = num_threads
 
     def fit(self, X, y, features=[], prediction_name="prediction"):
         """
@@ -239,7 +240,7 @@ class CorelsClassifier:
         rl.rules = fit_wrap_begin(samples.astype(np.uint8, copy=False),
                              labels.astype(np.uint8, copy=False), rl.features,
                              self.max_card, self.min_support, verbose, mine_verbose, minor_verbose,
-                             self.c, policy_id, map_id, self.ablation, False, self.pre_mine, 1, self.n_iter)
+                             self.c, policy_id, map_id, self.ablation, False, self.pre_mine, self.num_threads, self.n_iter)
             
         self.rl_ = rl
 
