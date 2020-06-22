@@ -12,7 +12,7 @@ int sample_comp(const void *a, const void *b) {
                          samples_nrules, samples_nrules);
 }
 
-int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* minority_out, int verbose)
+int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* minority_out, int verbose, int* minority_count)
 {
   if(!rules || !labels || !minority_out) {
     return -1;
@@ -103,8 +103,10 @@ int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* mi
   strcpy(minority_out->features, "minority");
   minority_out->ids = NULL;
 
-  if(verbose)
-    printf("Generated minority bound with support %f\n", (double)minority_out->support / (double)nsamples);
+  if(verbose) {
+        printf("Generated minority bound with support %f\n", (double)minority_out->support / (double)nsamples);
+        (*minority_count)++;
+    }
 
 end:
   if(line_clean)

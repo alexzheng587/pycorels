@@ -20,8 +20,8 @@ def install(gmp):
         version = f.read().strip()
 
     source_dir = 'corels/src/corels/src/'
-    sources = ['utils.cpp', 'rulelib.cpp', 'run.cpp', 'pmap.cpp', 
-               'corels.cpp', 'cache.cpp']
+    sources = ['utils.cc', 'rulelib.c', 'run.cc', 'pmap.cc',
+               'corels.cc', 'cache.cc']
     
     for i in range(len(sources)):
         sources[i] = source_dir + sources[i]
@@ -29,7 +29,7 @@ def install(gmp):
     sources.append('corels/_corels.cpp')
     sources.append('corels/src/utils.cpp')
 
-    cpp_args = ['-Wall', '-O3', '-std=c++11']
+    cpp_args = ['-g', '-Wall', '-O0', '-std=c++11']
     libraries = []
 
     if os.name == 'posix':

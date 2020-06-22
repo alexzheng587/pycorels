@@ -10,14 +10,14 @@ import numpy as np
 cimport numpy as np
 cimport cython
 
-cdef extern from "src/corels/src/rule.hh":
+cdef extern from "src/corels/src/rule.h":
     ctypedef unsigned long* VECTOR
     cdef struct rule:
-        VECTOR truthtable
         char* features
-        int cardinality
-        int* ids
         int support
+        int cardinality
+        int *ids
+        VECTOR truthtable
 
     ctypedef rule rule_t
     
@@ -30,23 +30,18 @@ cdef extern from "src/corels/src/rule.hh":
     int count_ones_vector(VECTOR, int)
 
 cdef extern from "src/corels/src/run.hh":
-    int run_corels_begin(double c, char* vstring, int curiosity_policy,
-                      int map_type, int ablation, int calculate_size, int nrules, int nlabels,
-                      int nsamples, rule_t* rules, rule_t* labels, rule_t* meta, int freq, char* log_fname,
-                      PermutationMap*& pmap, CacheTree*& tree, Queue*& queue, double& init,
-                      set[string]& verbosity)
-
-    int run_corels_loop(size_t max_num_nodes, PermutationMap* pmap, CacheTree* tree, Queue* queue)
-
-    double run_corels_end(vector[int]* rulelist, vector[int]* classes, int early, int latex_out, rule_t* rules,
-                          rule_t* labels, char* opt_fname, PermutationMap*& pmap, CacheTree*& tree, Queue*& queue,
-                          double init, set[string]& verbosity)
+    double run_corels(double c, char* vstring, int curiosity_policy,
+                   int map_type, int ablation, int calculate_size, int nrules, int nlabels,
+                   int nsamples, rule_t* rules, rule_t* labels, rule_t* meta, int freq, char* log_fname,
+                   PermutationMap*& pmap, CacheTree*& tree, Queue*& queue, double& init,
+                   int verbosity, int num_threads, int max_num_nodes, int nmeta, int random_seed,
+                   vector[int]* rulelist, vector[int]* classes)
 
 cdef extern from "src/utils.hh":
     int mine_rules(char **features, rule_t *samples, int nfeatures, int nsamples, 
                 int max_card, double min_support, rule_t **rules_out, int verbose, int pre_mine)
 
-    int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* minority_out, int verbose)
+    int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* minority_out, int verbose, int* minor_count)
 
 cdef extern from "src/corels/src/pmap.hh":
     cdef cppclass PermutationMap:
@@ -145,7 +140,6 @@ cdef rule_t* _to_vector(np.ndarray[np.uint8_t, ndim=2] X, int* ncount_out):
 
         ncount_out[0] = ncount
 
-        vectors[i].ids = NULL
         vectors[i].features = NULL
         vectors[i].cardinality = 1
         vectors[i].support = nones
@@ -158,8 +152,6 @@ cdef _free_vector(rule_t* vs, int count):
     
     for i in range(count):
         rule_vfree(&vs[i].truthtable)
-        if vs[i].ids:
-            free(vs[i].ids)
 
         if vs[i].features:
             free(vs[i].features)
@@ -180,7 +172,7 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
              np.ndarray[np.uint8_t, ndim=2] labels,
              features, int max_card, double min_support, verbosity_str, int mine_verbose,
              int minor_verbose, double c, int policy, int map_type, int ablation,
-             int calculate_size, int pre_mine):
+             int calculate_size, int pre_mine, int num_threads, int max_num_nodes):
     global rules
     global labels_vecs
     global minor
@@ -299,7 +291,8 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
         n_rules = 0
         raise MemoryError();
 
-    cdef int mr = minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose)
+    cdef int minor_count = 0;
+    cdef int mr = minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count)
     if mr != 0:
         if labels_vecs != NULL:
             _free_vector(labels_vecs, 2)
@@ -315,10 +308,25 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
             _free_vector(minor, 1)
             minor = NULL
     """
-    
-    cdef int rb = run_corels_begin(c, verbosity, policy, map_type, ablation, calculate_size,
-                   n_rules, 2, nsamples, rules, labels_vecs, minor, 0, NULL, pmap, tree,
-                   queue, init, run_verbosity)
+    cdef vector[int] rulelist
+    cdef vector[int] classes
+
+    cdef double rb = run_corels(c, verbosity, policy, map_type, ablation, calculate_size,
+                   n_rules, 2, nsamples, rules, labels_vecs, minor, 1000, NULL, pmap, tree,
+                   queue, init, 10, num_threads, max_num_nodes, minor_count, 262,
+                    &rulelist, &classes)
+
+    r_out = []
+    for i in range(rulelist.size()):
+        if rulelist[i] < n_rules:
+            r_out.append({})
+            r_out[i]["antecedents"] = []
+            for j in range(rules[rulelist[i]].cardinality):
+                r_out[i]["antecedents"].append(rules[rulelist[i]].ids[j])
+
+            r_out[i]["prediction"] = bool(classes[i])
+
+    r_out.append({ "antecedents": [0], "prediction": bool(classes[rulelist.size()]) })
 
     if rb == -1:
         if labels_vecs != NULL:
@@ -332,51 +340,51 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
             rules = NULL
         n_rules = 0
 
-        return False
-
-    return True
-
-def fit_wrap_loop(size_t max_nodes):
-    cdef size_t max_num_nodes = max_nodes
-    # This is where the magic happens
-    return (run_corels_loop(max_num_nodes, pmap, tree, queue) != -1)
-
-def fit_wrap_end(int early):
-    global rules
-    global labels_vecs
-    global minor
-    global n_rules
-
-    cdef vector[int] rulelist
-    cdef vector[int] classes
-    run_corels_end(&rulelist, &classes, early, 0, NULL, NULL, NULL, pmap, tree,
-                    queue, init, run_verbosity)
-
-    r_out = []
-    print(rulelist.size())
-    for i in range(rulelist.size()):
-        if rulelist[i] < n_rules:
-            r_out.append({})
-            r_out[i]["antecedents"] = []
-            for j in range(rules[rulelist[i]].cardinality):
-                r_out[i]["antecedents"].append(rules[rulelist[i]].ids[j])
-
-            r_out[i]["prediction"] = bool(classes[i])
-
-    r_out.append({ "antecedents": [0], "prediction": bool(classes[rulelist.size()]) })
-
-    # Exiting early skips cleanup
-    if early == 0:   
-        if labels_vecs != NULL: 
-            _free_vector(labels_vecs, 2)
-        if minor != NULL: 
-            _free_vector(minor, 1)
-        if rules != NULL: 
-            _free_vector(rules, n_rules)
-    
-    minor = NULL
-    rules = NULL
-    labels_vecs = NULL
-    n_rules = 0
+        return Exception
 
     return r_out
+
+# def fit_wrap_loop(size_t max_nodes):
+#     cdef size_t max_num_nodes = max_nodes
+#     # This is where the magic happens
+#     return (run_corels_loop(max_num_nodes, pmap, tree, queue) != -1)
+#
+# def fit_wrap_end(int early):
+#     global rules
+#     global labels_vecs
+#     global minor
+#     global n_rules
+#
+#     cdef vector[int] rulelist
+#     cdef vector[int] classes
+#     run_corels_end(&rulelist, &classes, early, 0, NULL, NULL, NULL, pmap, tree,
+#                     queue, init, run_verbosity)
+#
+#     r_out = []
+#     print(rulelist.size())
+#     for i in range(rulelist.size()):
+#         if rulelist[i] < n_rules:
+#             r_out.append({})
+#             r_out[i]["antecedents"] = []
+#             for j in range(rules[rulelist[i]].cardinality):
+#                 r_out[i]["antecedents"].append(rules[rulelist[i]].ids[j])
+#
+#             r_out[i]["prediction"] = bool(classes[i])
+#
+#     r_out.append({ "antecedents": [0], "prediction": bool(classes[rulelist.size()]) })
+#
+#     # Exiting early skips cleanup
+#     if early == 0:
+#         if labels_vecs != NULL:
+#             _free_vector(labels_vecs, 2)
+#         if minor != NULL:
+#             _free_vector(minor, 1)
+#         if rules != NULL:
+#             _free_vector(rules, n_rules)
+#
+#     minor = NULL
+#     rules = NULL
+#     labels_vecs = NULL
+#     n_rules = 0
+#
+#     return r_out
