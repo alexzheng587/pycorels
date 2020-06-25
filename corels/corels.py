@@ -92,7 +92,8 @@ class CorelsClassifier:
     _estimator_type = "classifier"
 
     def __init__(self, c=0.01, n_iter=10000, map_type="prefix", policy="lower_bound",
-                 verbosity=["rulelist"], ablation=0, max_card=2, min_support=0.01, pre_mine=1, random_seed=262, num_threads=1):
+                 verbosity=["rulelist"], ablation=0, max_card=2, min_support=0.01, pre_mine=1, random_seed=262,
+                 num_threads=1, logging_freq=10):
         self.c = c
         self.n_iter = n_iter
         self.map_type = map_type
@@ -104,8 +105,9 @@ class CorelsClassifier:
         self.pre_mine = pre_mine
         self.random_seed = random_seed
         self.num_threads = num_threads
+        self.logging_freq = logging_freq
 
-    def fit(self, X, y, features=[], prediction_name="prediction"):
+    def fit(self, X, y, features=[], prediction_name="prediction", minor=None):
         """
         Build a CORELS classifier from the training set (X, y).
 
@@ -161,12 +163,20 @@ class CorelsClassifier:
         if not isinstance(self.pre_mine, int):
             raise TypeError("Pre_mine must be an int, got: " + str(type(self.pre_mine)))
         if not isinstance(self.random_seed, int):
-            raise TypeError("Pre_mine must be an int, got: " + str(type(self.random_seed)))
+            raise TypeError("Random seed must be an int, got: " + str(type(self.random_seed)))
+        if not isinstance(self.num_threads, int):
+            raise TypeError("Number of threads must be an int, got: " + str(type(self.num_threads)))
        
         label = check_array(y, ndim=1)
         labels = np.stack([ np.invert(label), label ])
         samples = check_array(X, ndim=2)
         check_consistent_length(samples, labels)
+
+        minorities = np.empty([1, 1])
+        minorities[0][0] = -1
+        if minor is not None:
+            minority = check_array(minor, ndim=1)
+            minorities = np.stack([ np.invert(minority), minority ])
 
         n_samples = samples.shape[0]
         n_features = samples.shape[1]
@@ -240,7 +250,8 @@ class CorelsClassifier:
         rl.rules = fit_wrap_begin(samples.astype(np.uint8, copy=False),
                              labels.astype(np.uint8, copy=False), rl.features,
                              self.max_card, self.min_support, verbose, mine_verbose, minor_verbose,
-                             self.c, policy_id, map_id, self.ablation, False, self.pre_mine, self.num_threads, self.n_iter)
+                             self.c, policy_id, map_id, self.ablation, False, self.pre_mine, self.num_threads,
+                             self.n_iter, minorities.astype(np.uint8, copy=False), self.random_seed, self.logging_freq)
             
         self.rl_ = rl
 

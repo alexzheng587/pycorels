@@ -6,6 +6,7 @@ from libc.stdlib cimport malloc, free
 from libcpp.vector cimport vector
 from libcpp.set cimport set
 from libcpp.string cimport string
+from libc.stdio cimport printf
 import numpy as np
 cimport numpy as np
 cimport cython
@@ -149,13 +150,18 @@ cdef rule_t* _to_vector(np.ndarray[np.uint8_t, ndim=2] X, int* ncount_out):
 cdef _free_vector(rule_t* vs, int count):
     if vs == NULL:
         return
-    
+
+    printf("before for loop\n")
     for i in range(count):
+        printf("before rule_vfree\n")
         rule_vfree(&vs[i].truthtable)
 
+        printf("before vs[i].features\n")
         if vs[i].features:
+            printf("before free")
             free(vs[i].features)
-    
+
+    printf("after for loop\n")
     free(vs)
 
 cdef rule_t* rules = NULL
@@ -172,12 +178,16 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
              np.ndarray[np.uint8_t, ndim=2] labels,
              features, int max_card, double min_support, verbosity_str, int mine_verbose,
              int minor_verbose, double c, int policy, int map_type, int ablation,
-             int calculate_size, int pre_mine, int num_threads, int max_num_nodes):
+             int calculate_size, int pre_mine, int num_threads, int max_num_nodes,
+             np.ndarray[np.uint8_t, ndim=2] minority_list, int random_seed, int freq):
     global rules
     global labels_vecs
     global minor
     global n_rules
 
+    rules = NULL
+    labels_vecs = NULL
+    minor = NULL
     cdef int nfeatures = 0
     cdef rule_t* samples_vecs = _to_vector(samples, &nfeatures)
 
@@ -224,7 +234,7 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
                 free(features_vec[i])
         free(features_vec)
         features_vec = NULL
-   
+
     if samples_vecs != NULL:
         _free_vector(samples_vecs, nsamples)
         samples_vecs = NULL
@@ -275,33 +285,39 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
         raise MemoryError();
     strcpy(labels_vecs[0].features, "label=0")
     strcpy(labels_vecs[1].features, "label=1")
-    
+
     if minor != NULL:
         _free_vector(minor, 1)
         minor = NULL
 
-    minor = <rule_t*>malloc(sizeof(rule_t))
-    if minor == NULL:
-        if labels_vecs != NULL:
-            _free_vector(labels_vecs, 2)
-            labels_vecs = NULL
-        if rules != NULL:
-            _free_vector(rules, n_rules)
-            rules = NULL
-        n_rules = 0
-        raise MemoryError();
-
     cdef int minor_count = 0;
-    cdef int mr = minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count)
-    if mr != 0:
-        if labels_vecs != NULL:
-            _free_vector(labels_vecs, 2)
-            labels_vecs = NULL
-        if rules != NULL:
-            _free_vector(rules, n_rules)
-            rules = NULL
-        n_rules = 0
-        raise MemoryError()
+    if minority_list[0][0] < 0:
+        printf("in _to_vector\n")
+        minor = _to_vector(minority_list, &minor_count)
+        minor.features = <char*>malloc(9)
+        strcpy(minor.features, "minority")
+        printf("minor count is %i\n", minor_count)
+    else:
+        minor = <rule_t*>malloc(sizeof(rule_t))
+        if minor == NULL:
+            if labels_vecs != NULL:
+                _free_vector(labels_vecs, 2)
+                labels_vecs = NULL
+            if rules != NULL:
+                _free_vector(rules, n_rules)
+                rules = NULL
+            n_rules = 0
+            raise MemoryError();
+
+        if minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count) != 0:
+            if labels_vecs != NULL:
+                _free_vector(labels_vecs, 2)
+                labels_vecs = NULL
+            if rules != NULL:
+                _free_vector(rules, n_rules)
+                rules = NULL
+            n_rules = 0
+            raise MemoryError()
     """    
     if count_ones_vector(minor[0].truthtable, nsamples) <= 0:
         if minor != NULL:
@@ -312,8 +328,8 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
     cdef vector[int] classes
 
     cdef double rb = run_corels(c, verbosity, policy, map_type, ablation, calculate_size,
-                   n_rules, 2, nsamples, rules, labels_vecs, minor, 1000, NULL, pmap, tree,
-                   queue, init, 10, num_threads, max_num_nodes, minor_count, 262,
+                   n_rules, 2, nsamples, rules, labels_vecs, minor, freq, NULL, pmap, tree,
+                   queue, init, 10, num_threads, max_num_nodes, minor_count, random_seed,
                     &rulelist, &classes)
 
     r_out = []
