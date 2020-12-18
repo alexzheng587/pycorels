@@ -31,7 +31,7 @@ int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* mi
   // Generate the sample bitvectors
   for(int s = 0; s < nsamples; s++) {
     for(int i = 0; i < nrules; i++)
-      line_clean[i] = rule_isset(rules[i].truthtable, nsamples - s - 1, nsamples) + '0';
+      line_clean[i] = rule_isset(rules[i].truthtable, nsamples - s - 1) + '0';
 
     line_clean[nrules] = '\0';
 
@@ -58,7 +58,7 @@ int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* mi
       // Find the number of zero-labelled and one-labelled samples in this group
       for(int j = begin_group; j < i; j++) {
         int idx = sample_indices[j];
-        if(rule_isset(labels[0].truthtable, nsamples - idx - 1, nsamples))
+        if(rule_isset(labels[0].truthtable, nsamples - idx - 1))
           zeroes++;
         else
           ones++;
@@ -78,7 +78,7 @@ int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* mi
       // Set all the samples in this group to either 0 or 1 in the minority file
       for(int j = begin_group; j < i; j++) {
         int idx = sample_indices[j];
-        if(rule_isset(labels[0].truthtable, nsamples - idx - 1, nsamples)) {
+        if(rule_isset(labels[0].truthtable, nsamples - idx - 1)) {
           minority[idx] = c;
         }
         else {
@@ -198,7 +198,7 @@ int mine_rules(char **features, rule_t *samples, int nfeatures, int nsamples,
     {
       // if feature is set, set the accoring truth table value
       // also set the opposite if pre_mine is selected
-      if(rule_isset(samples[j].truthtable, nfeatures - i - 1, nfeatures)) {
+      if(rule_isset(samples[j].truthtable, nfeatures - i - 1)) {
         rule_set(rules_vec[i + 1].truthtable, nsamples - j - 1, 1, nsamples);
         if (pre_mine)
             rule_set(rules_vec[nrules / 2 + i + 1].truthtable, nsamples - j - 1, 0, nsamples);

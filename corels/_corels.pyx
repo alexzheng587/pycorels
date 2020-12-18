@@ -20,7 +20,14 @@ cdef extern from "src/corels/src/rule.h":
         int *ids
         VECTOR truthtable
 
+    cdef struct minority_class:
+        char* features
+        int npos
+        int nneg
+        VECTOR truthtable
+
     ctypedef rule rule_t
+    ctypedef minority_class minority_class_t
     
     int ascii_to_vector(char *, size_t, int *, int *, VECTOR *)
     void rules_free(rule_t *, const int, int);
@@ -31,12 +38,12 @@ cdef extern from "src/corels/src/rule.h":
     int count_ones_vector(VECTOR, int)
 
 cdef extern from "src/corels/src/run.hh":
-    double run_corels(double c, char* vstring, int curiosity_policy,
-                   int map_type, int ablation, int calculate_size, int nrules, int nlabels,
-                   int nsamples, rule_t* rules, rule_t* labels, rule_t* meta, int freq, char* log_fname,
+    double run_corels(double c, char* vstring, char* loss_type, int curiosity_policy,
+                   int map_type, int ablation, int calculate_size, int latex_out, int nrules, int nlabels,
+                   int nsamples, rule_t* rules, rule_t* labels, rule_t* meta, minority_class_t* minority_class, int freq, char* log_fname,
                    PermutationMap*& pmap, CacheTree*& tree, Queue*& queue, double& init,
                    int verbosity, int num_threads, int max_num_nodes, int nmeta, int random_seed,
-                   vector[int]* rulelist, vector[int]* classes)
+                   vector[int]* rulelist, vector[int]* classes, double weight)
 
 cdef extern from "src/utils.hh":
     int mine_rules(char **features, rule_t *samples, int nfeatures, int nsamples, 
@@ -147,21 +154,45 @@ cdef rule_t* _to_vector(np.ndarray[np.uint8_t, ndim=2] X, int* ncount_out):
 
     return vectors
 
+cdef minority_class_t* _to_minority_vector(np.ndarray[np.uint8_t, ndim=2] X, minority_class_rules, int* ncount_out):
+    d0 = X.shape[0]
+    d1 = X.shape[1]
+    cdef int dd0 = d0;
+    cdef int dd1 = d1;
+    cdef minority_class_t* vectors = <minority_class_t*>malloc(d0 * sizeof(minority_class_t))
+    if vectors == NULL:
+        raise MemoryError()
+
+    cdef int nones, ncount;
+
+    for i in range(d0):
+        arrstr = minority_class_rules[i]
+        vectors[i].npos = X[i][0]
+        vectors[i].nneg = X[i][1]
+
+        bytestr = arrstr.encode("ascii")
+        ncount = len(bytestr)
+        if ascii_to_vector(bytestr, ncount, &ncount, &nones, &vectors[i].truthtable) != 0:
+            for j in range(i):
+                rule_vfree(&vectors[j].truthtable)
+
+            free(vectors)
+            raise ValueError("Could not load samples")
+
+        ncount_out[0] = ncount
+
+    return vectors
+
 cdef _free_vector(rule_t* vs, int count):
     if vs == NULL:
         return
 
-    printf("before for loop\n")
     for i in range(count):
-        printf("before rule_vfree\n")
         rule_vfree(&vs[i].truthtable)
 
-        printf("before vs[i].features\n")
         if vs[i].features:
-            printf("before free")
             free(vs[i].features)
 
-    printf("after for loop\n")
     free(vs)
 
 cdef rule_t* rules = NULL
@@ -176,10 +207,11 @@ cdef set[string] run_verbosity
 
 def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples, 
              np.ndarray[np.uint8_t, ndim=2] labels,
+             np.ndarray[np.uint8_t, ndim=2] minority_classes, minority_class_rules,
              features, int max_card, double min_support, verbosity_str, int mine_verbose,
              int minor_verbose, double c, int policy, int map_type, int ablation,
              int calculate_size, int pre_mine, int num_threads, int max_num_nodes,
-             np.ndarray[np.uint8_t, ndim=2] minority_list, int random_seed, int freq):
+             np.ndarray[np.uint8_t, ndim=2] minority_list, int random_seed, int freq, loss_type_str, double weight):
     global rules
     global labels_vecs
     global minor
@@ -191,6 +223,10 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
     cdef int nfeatures = 0
     cdef rule_t* samples_vecs = _to_vector(samples, &nfeatures)
 
+    cdef int temp = 0
+    cdef minority_class_t* minority_class
+    if pre_mine == 0:
+       minority_class = _to_minority_vector(minority_classes, minority_class_rules, &temp)
     nsamples = samples.shape[0]
 
     if nfeatures > len(features):
@@ -241,11 +277,14 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
 
     if r == -1 or rules == NULL:
         raise MemoryError();
-    
+
     n_rules = r
 
     verbosity_ascii = verbosity_str.encode("ascii")
     cdef char* verbosity = verbosity_ascii
+
+    loss_ascii = loss_type_str.encode("ascii")
+    cdef char* loss_type = loss_ascii
 
     if labels_vecs != NULL:
         _free_vector(labels_vecs, 2)
@@ -292,11 +331,9 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
 
     cdef int minor_count = 0;
     if minority_list[0][0] < 0:
-        printf("in _to_vector\n")
         minor = _to_vector(minority_list, &minor_count)
         minor.features = <char*>malloc(9)
         strcpy(minor.features, "minority")
-        printf("minor count is %i\n", minor_count)
     else:
         minor = <rule_t*>malloc(sizeof(rule_t))
         if minor == NULL:
@@ -318,7 +355,7 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
                 rules = NULL
             n_rules = 0
             raise MemoryError()
-    """    
+    """
     if count_ones_vector(minor[0].truthtable, nsamples) <= 0:
         if minor != NULL:
             _free_vector(minor, 1)
@@ -327,10 +364,11 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
     cdef vector[int] rulelist
     cdef vector[int] classes
 
-    cdef double rb = run_corels(c, verbosity, policy, map_type, ablation, calculate_size,
-                   n_rules, 2, nsamples, rules, labels_vecs, minor, freq, NULL, pmap, tree,
-                   queue, init, 10, num_threads, max_num_nodes, minor_count, random_seed,
-                    &rulelist, &classes)
+    cdef double rb = run_corels(c, verbosity, loss_type, policy, map_type, ablation, calculate_size, 0,
+                   n_rules, 2, nsamples, rules, labels_vecs, minor, minority_class, freq, NULL, pmap, tree,
+                   queue, init, 1000, num_threads, max_num_nodes, minor_count, random_seed,
+                    &rulelist, &classes, weight)
+
 
     r_out = []
     for i in range(rulelist.size()):
@@ -346,12 +384,15 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
 
     if rb == -1:
         if labels_vecs != NULL:
+            printf("freeing label\n")
             _free_vector(labels_vecs, 2)
             labels_vecs = NULL
         if minor != NULL:
+            printf("freeing minor\n")
             _free_vector(minor, 1)
             minor = NULL
         if rules != NULL:
+            printf("freeing rules\n")
             _free_vector(rules, n_rules)
             rules = NULL
         n_rules = 0

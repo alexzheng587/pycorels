@@ -4,6 +4,7 @@ from .utils import check_consistent_length, check_array, check_is_fitted, get_fe
 import numpy as np
 import pickle
 import warnings
+from .Non_additive_minority import compute_minority_classes
 
 class CorelsClassifier:
     """Certifiably Optimal RulE ListS classifier.
@@ -93,7 +94,7 @@ class CorelsClassifier:
 
     def __init__(self, c=0.01, n_iter=10000, map_type="prefix", policy="lower_bound",
                  verbosity=["rulelist"], ablation=0, max_card=2, min_support=0.01, pre_mine=1, random_seed=262,
-                 num_threads=1, logging_freq=10):
+                 num_threads=1, logging_freq=10, loss_type="acc", weight=0.0):
         self.c = c
         self.n_iter = n_iter
         self.map_type = map_type
@@ -106,6 +107,8 @@ class CorelsClassifier:
         self.random_seed = random_seed
         self.num_threads = num_threads
         self.logging_freq = logging_freq
+        self.loss_type = loss_type
+        self.weight = weight
 
     def fit(self, X, y, features=[], prediction_name="prediction", minor=None):
         """
@@ -166,6 +169,12 @@ class CorelsClassifier:
             raise TypeError("Random seed must be an int, got: " + str(type(self.random_seed)))
         if not isinstance(self.num_threads, int):
             raise TypeError("Number of threads must be an int, got: " + str(type(self.num_threads)))
+        if not isinstance(self.loss_type, str):
+            raise TypeError("loss type must be a string, got: " + str(type(prediction_name)))
+        if not isinstance(self.weight, float):
+            raise TypeError("Weight must be a float, got: " + str(type(self.min_support)))
+        if (self.loss_type == "bacc" or self.loss_type == "wacc") and self.weight == 0.0:
+            raise ValueError("Must specify valid weight for balanced or weighted accuracy, got: " + str(self.weight))
        
         label = check_array(y, ndim=1)
         labels = np.stack([ np.invert(label), label ])
@@ -177,6 +186,12 @@ class CorelsClassifier:
         if minor is not None:
             minority = check_array(minor, ndim=1)
             minorities = np.stack([ np.invert(minority), minority ])
+
+        minority_classes = None
+        minority_class_rule = None
+        if self.pre_mine == 0:
+            minority_class_rule, minority_classes = compute_minority_classes(X, y)
+            minority_class_rule = minority_class_rule.values.tolist()
 
         n_samples = samples.shape[0]
         n_features = samples.shape[1]
@@ -248,10 +263,10 @@ class CorelsClassifier:
         policy_id = policies.index(self.policy)
 
         rl.rules = fit_wrap_begin(samples.astype(np.uint8, copy=False),
-                             labels.astype(np.uint8, copy=False), rl.features,
-                             self.max_card, self.min_support, verbose, mine_verbose, minor_verbose,
+                             labels.astype(np.uint8, copy=False), minority_classes.to_numpy().astype(np.uint8, copy=False), minority_class_rule,
+                             rl.features, self.max_card, self.min_support, verbose, mine_verbose, minor_verbose,
                              self.c, policy_id, map_id, self.ablation, False, self.pre_mine, self.num_threads,
-                             self.n_iter, minorities.astype(np.uint8, copy=False), self.random_seed, self.logging_freq)
+                             self.n_iter, minorities.astype(np.uint8, copy=False), self.random_seed, self.logging_freq, self.loss_type, self.weight)
             
         self.rl_ = rl
 
@@ -342,7 +357,8 @@ class CorelsClassifier:
             "verbosity": self.verbosity,
             "ablation": self.ablation,
             "max_card": self.max_card,
-            "min_support": self.min_support
+            "min_support": self.min_support,
+            "loss_type": self.loss_type
         }
 
     def set_params(self, **params):
