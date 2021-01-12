@@ -189,9 +189,10 @@ class CorelsClassifier:
 
         minority_classes = None
         minority_class_rule = None
-        if self.pre_mine == 0:
+        if self.loss_type == "auc":
             minority_class_rule, minority_classes = compute_minority_classes(X, y)
             minority_class_rule = minority_class_rule.values.tolist()
+            minority_classes = minority_classes.to_numpy().astype(np.uint8, copy=False)
 
         n_samples = samples.shape[0]
         n_features = samples.shape[1]
@@ -263,7 +264,7 @@ class CorelsClassifier:
         policy_id = policies.index(self.policy)
 
         rl.rules = fit_wrap_begin(samples.astype(np.uint8, copy=False),
-                             labels.astype(np.uint8, copy=False), minority_classes.to_numpy().astype(np.uint8, copy=False), minority_class_rule,
+                             labels.astype(np.uint8, copy=False), minority_classes, minority_class_rule,
                              rl.features, self.max_card, self.min_support, verbose, mine_verbose, minor_verbose,
                              self.c, policy_id, map_id, self.ablation, False, self.pre_mine, self.num_threads,
                              self.n_iter, minorities.astype(np.uint8, copy=False), self.random_seed, self.logging_freq, self.loss_type, self.weight)

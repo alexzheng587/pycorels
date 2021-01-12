@@ -1,7 +1,7 @@
 # distutils: language = c++
 # cython: language_level = 3
 
-from libc.string cimport strdup, strcpy
+from libc.string cimport strdup, strcpy, strcmp
 from libc.stdlib cimport malloc, free
 from libcpp.vector cimport vector
 from libcpp.set cimport set
@@ -225,7 +225,9 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
 
     cdef int temp = 0
     cdef minority_class_t* minority_class
-    if pre_mine == 0:
+    loss_ascii = loss_type_str.encode("ascii")
+    cdef char* loss_type = loss_ascii
+    if strcmp(loss_type, 'auc') == 0:
        minority_class = _to_minority_vector(minority_classes, minority_class_rules, &temp)
     nsamples = samples.shape[0]
 
@@ -282,9 +284,6 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
 
     verbosity_ascii = verbosity_str.encode("ascii")
     cdef char* verbosity = verbosity_ascii
-
-    loss_ascii = loss_type_str.encode("ascii")
-    cdef char* loss_type = loss_ascii
 
     if labels_vecs != NULL:
         _free_vector(labels_vecs, 2)
