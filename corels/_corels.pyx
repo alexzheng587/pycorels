@@ -49,7 +49,7 @@ cdef extern from "src/utils.hh":
     int mine_rules(char **features, rule_t *samples, int nfeatures, int nsamples, 
                 int max_card, double min_support, rule_t **rules_out, int verbose, int pre_mine)
 
-    int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* minority_out, int verbose, int* minor_count)
+    int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* minority_out, int verbose, int* minor_count, char* loss_type, double weight)
 
 cdef extern from "src/corels/src/pmap.hh":
     cdef cppclass PermutationMap:
@@ -345,7 +345,7 @@ def fit_wrap_begin(np.ndarray[np.uint8_t, ndim=2] samples,
             n_rules = 0
             raise MemoryError();
 
-        if minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count) != 0:
+        if minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count, loss_type, weight) != 0:
             if labels_vecs != NULL:
                 _free_vector(labels_vecs, 2)
                 labels_vecs = NULL

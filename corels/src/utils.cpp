@@ -12,7 +12,7 @@ int sample_comp(const void *a, const void *b) {
                          samples_nrules, samples_nrules);
 }
 
-int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* minority_out, int verbose, int* minority_count)
+int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* minority_out, int verbose, int* minority_count, char* loss_type_str, double w)
 {
   if(!rules || !labels || !minority_out) {
     return -1;
@@ -27,7 +27,9 @@ int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* mi
   sample_array = (rule_t*)malloc(sizeof(rule_t) * nsamples);
   minority = (char*)malloc(nsamples + 1);
   sample_indices = (int*)malloc(sizeof(int) * nsamples);
-  
+  int neg_total = labels[0].support;
+  int pos_total = labels[1].support;
+
   // Generate the sample bitvectors
   for(int s = 0; s < nsamples; s++) {
     for(int i = 0; i < nrules; i++)
@@ -66,13 +68,37 @@ int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* mi
 
       // What should happen if zeroes == ones??
       // Right now it just replicates bbcache/processing/minority.py
-      if(zeroes < ones) {
-        c = '1';
-        nc = '0';
-      }
-      else {
-        c = '0';
-        nc = '1';
+      if (strcmp(loss_type_str, "acc") == 0) {
+          if(zeroes < ones) {
+            c = '1';
+            nc = '0';
+          }
+          else {
+            c = '0';
+            nc = '1';
+          }
+      } else if(strcmp(loss_type_str, "bacc") == 0) {
+          double zero = 0.5 * (ones / pos_total);
+          double one = 0.5 * (zeroes / neg_total);
+          if (zero < one) {
+              c = '1';
+              nc = '0';
+          }
+          else {
+              c = '0';
+              nc = '1';
+          }
+      } else if(strcmp(loss_type_str, "wacc") == 0) {
+          double zero = w * ones;
+          double one = zeroes;
+          if (zero > one) {
+              c = '1';
+              nc = '0';
+          }
+          else {
+              c = '0';
+              nc = '1';
+          }
       }
       
       // Set all the samples in this group to either 0 or 1 in the minority file

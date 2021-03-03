@@ -5576,7 +5576,7 @@ static PyObject *__pyx_pf_6corels_7_corels_2fit_wrap_begin(CYTHON_UNUSED PyObjec
  *             n_rules = 0
  *             raise MemoryError();             # <<<<<<<<<<<<<<
  * 
- *         if minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count) != 0:
+ *         if minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count, loss_type, weight) != 0:
  */
       PyErr_NoMemory(); __PYX_ERR(0, 346, __pyx_L1_error)
 
@@ -5592,17 +5592,17 @@ static PyObject *__pyx_pf_6corels_7_corels_2fit_wrap_begin(CYTHON_UNUSED PyObjec
     /* "corels/_corels.pyx":348
  *             raise MemoryError();
  * 
- *         if minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count) != 0:             # <<<<<<<<<<<<<<
+ *         if minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count, loss_type, weight) != 0:             # <<<<<<<<<<<<<<
  *             if labels_vecs != NULL:
  *                 _free_vector(labels_vecs, 2)
  */
     __pyx_t_7 = __Pyx_PyInt_As_int(__pyx_v_nsamples); if (unlikely((__pyx_t_7 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 348, __pyx_L1_error)
-    __pyx_t_5 = ((minority(__pyx_v_6corels_7_corels_rules, __pyx_v_6corels_7_corels_n_rules, __pyx_v_6corels_7_corels_labels_vecs, __pyx_t_7, __pyx_v_6corels_7_corels_minor, __pyx_v_minor_verbose, (&__pyx_v_minor_count)) != 0) != 0);
+    __pyx_t_5 = ((minority(__pyx_v_6corels_7_corels_rules, __pyx_v_6corels_7_corels_n_rules, __pyx_v_6corels_7_corels_labels_vecs, __pyx_t_7, __pyx_v_6corels_7_corels_minor, __pyx_v_minor_verbose, (&__pyx_v_minor_count), __pyx_v_loss_type, __pyx_v_weight) != 0) != 0);
     if (__pyx_t_5) {
 
       /* "corels/_corels.pyx":349
  * 
- *         if minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count) != 0:
+ *         if minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count, loss_type, weight) != 0:
  *             if labels_vecs != NULL:             # <<<<<<<<<<<<<<
  *                 _free_vector(labels_vecs, 2)
  *                 labels_vecs = NULL
@@ -5611,7 +5611,7 @@ static PyObject *__pyx_pf_6corels_7_corels_2fit_wrap_begin(CYTHON_UNUSED PyObjec
       if (__pyx_t_5) {
 
         /* "corels/_corels.pyx":350
- *         if minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count) != 0:
+ *         if minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count, loss_type, weight) != 0:
  *             if labels_vecs != NULL:
  *                 _free_vector(labels_vecs, 2)             # <<<<<<<<<<<<<<
  *                 labels_vecs = NULL
@@ -5632,7 +5632,7 @@ static PyObject *__pyx_pf_6corels_7_corels_2fit_wrap_begin(CYTHON_UNUSED PyObjec
 
         /* "corels/_corels.pyx":349
  * 
- *         if minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count) != 0:
+ *         if minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count, loss_type, weight) != 0:
  *             if labels_vecs != NULL:             # <<<<<<<<<<<<<<
  *                 _free_vector(labels_vecs, 2)
  *                 labels_vecs = NULL
@@ -5699,7 +5699,7 @@ static PyObject *__pyx_pf_6corels_7_corels_2fit_wrap_begin(CYTHON_UNUSED PyObjec
       /* "corels/_corels.pyx":348
  *             raise MemoryError();
  * 
- *         if minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count) != 0:             # <<<<<<<<<<<<<<
+ *         if minority(rules, n_rules, labels_vecs, nsamples, minor, minor_verbose, &minor_count, loss_type, weight) != 0:             # <<<<<<<<<<<<<<
  *             if labels_vecs != NULL:
  *                 _free_vector(labels_vecs, 2)
  */
