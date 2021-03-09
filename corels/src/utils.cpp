@@ -68,16 +68,7 @@ int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* mi
 
       // What should happen if zeroes == ones??
       // Right now it just replicates bbcache/processing/minority.py
-      if (strcmp(loss_type_str, "acc") == 0) {
-          if(zeroes < ones) {
-            c = '1';
-            nc = '0';
-          }
-          else {
-            c = '0';
-            nc = '1';
-          }
-      } else if(strcmp(loss_type_str, "bacc") == 0) {
+      if(strcmp(loss_type_str, "bacc") == 0) {
           double zero = 0.5 * (ones / pos_total);
           double one = 0.5 * (zeroes / neg_total);
           if (zero < one) {
@@ -98,6 +89,15 @@ int minority(rule_t* rules, int nrules, rule_t* labels, int nsamples, rule_t* mi
           else {
               c = '0';
               nc = '1';
+          }
+      } else {
+        if(zeroes < ones) {
+            c = '1';
+            nc = '0';
+          }
+          else {
+            c = '0';
+            nc = '1';
           }
       }
       
